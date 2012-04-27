@@ -1,0 +1,55 @@
+#!/bin/sh
+# compare files with rsync outputs as a dry run
+# This may be useful when "rsync -i ..." isn't helpful..
+
+if [ -z $DIFF_OPTS ]; then
+    DIFF_OPTS="-us"
+fi
+RSYNC_OPTS=""
+
+USAGE()
+{
+    cmd=`basename $0`
+     cat << eof
+Usage: $cmd [rsync options] SRC HOST:DST
+
+rsync options
+SRC     source dir
+DST     dest dir
+
+Examples:
+        $cmd --exclude=\\*~ -avz . host:path/
+
+eof
+}
+
+if [ $# -lt 2 ]; then
+    USAGE
+    exit 1
+fi
+
+while [ $# -gt 2 ]
+do
+    RSYNC_OPTS="$RSYNC_OPTS $1"
+    shift
+done
+
+SRC=$1
+DST=(`echo $2|tr ":" " "`)
+REMOTE=${DST[0]}
+DST=${DST[1]}
+
+if [ -z $DST ]; then
+    USAGE
+    exit 1
+fi
+DST=`echo $DST|sed 's/\/*$//'`;
+
+for f in `rsync -n $RSYNC_OPTS "$SRC" $REMOTE:$DST`
+do
+    SRC=`echo $SRC|sed 's/\/*$//'`;
+    if [ ! -f $SRC/$f ]; then
+	continue
+    fi
+    cat $SRC/$f | ssh $REMOTE diff $DIFF_OPTS - $DST/$f
+done
